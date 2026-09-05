@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { X, Upload, CheckCircle2, AlertTriangle, FileText, Download, Activity, Compass, ShieldCheck } from 'lucide-react';
 import { X, Upload, CheckCircle2, AlertTriangle, Download, Activity, Compass, ShieldCheck } from 'lucide-react';
 import type { EvaluationResponse } from '../types/api';
 import { evaluateJob, getDownloadUrl } from '../services/api';
