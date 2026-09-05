@@ -91,7 +91,6 @@ def run_final_integration_audit():
     check(geo_data["depth_type"] == "RELATIVE_DEPTH", "Uncalibrated output strictly tagged RELATIVE_DEPTH")
     check(geo_data["calibration"]["is_metric"] is False, "is_metric flag is False for uncalibrated run")
     check(geo_data["input_metadata"]["has_georeference"] is True, "Georeferenced input detected")
-    check("32632" in (geo_data["input_metadata"]["crs"] or ""), "CRS EPSG:32632 strictly preserved")
     check("32618" in (geo_data["input_metadata"]["crs"] or ""), "CRS EPSG:32618 strictly preserved")
     check(geo_data["validation"]["is_valid"] is True, "Surface output passed numerical validation")
     check(geo_data["validation"]["has_nans"] is False, "Output contains zero NaN values")
@@ -220,7 +219,6 @@ def run_final_integration_audit():
     check(h_data["model_loaded"] is True, "Certified: Real model checkpoint executed")
     check(geo_data["validation"]["is_constant"] is False, "Certified: Output is non-synthetic and non-constant")
     check(len(calib_data["calibration"]["warnings"]) >= 0, "Certified: Scientific warnings transparently reported")
-    check(calib_data["calibration"]["method"] == "linear_least_squares", "Certified: Deterministic scientific calibration")
     check(calib_data["calibration"]["method"] == "gcp_affine", "Certified: Deterministic scientific calibration (gcp_affine)")
 
     # -------------------------------------------------------------------------

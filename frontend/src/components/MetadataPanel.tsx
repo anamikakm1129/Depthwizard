@@ -1,6 +1,4 @@
 import React from 'react';
-import { Download, Compass, Clock, CheckCircle2, ShieldCheck, MapPin, BarChart3, AlertTriangle } from 'lucide-react';
-import { Download, Compass, Clock, CheckCircle2, ShieldCheck, MapPin, BarChart3, AlertTriangle, Box } from 'lucide-react';
 import { Download, Compass, Clock, CheckCircle2, ShieldCheck, MapPin, BarChart3, AlertTriangle, Box, Activity } from 'lucide-react';
 import type { ProcessImageResponse } from '../types/api';
 import { getDownloadUrl } from '../services/api';
@@ -10,7 +8,6 @@ interface MetadataPanelProps {
   onOpenEvaluation?: () => void;
 }
 
-export const MetadataPanel: React.FC<MetadataPanelProps> = ({ result }) => {
 export const MetadataPanel: React.FC<MetadataPanelProps> = ({ result, onOpenEvaluation }) => {
   const { input_metadata, calibration, validation, timings, depth_type } = result;
 
