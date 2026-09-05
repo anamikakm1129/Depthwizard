@@ -1,0 +1,32 @@
+﻿# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.class
+
+# Virtual Environments
+venv/
+.venv/
+
+# Environment variables & secrets
+.env
+
+# Large Model Checkpoints & Data Assets
+backend/models/*.onnx
+backend/models/*.pt
+backend/models/*.pth
+backend/models/*.bin
+backend/models/*.safetensors
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/outputs/*
+!backend/outputs/.gitkeep
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+
+# Test artifacts
+.pytest_cache/

@@ -1,0 +1,31 @@
+﻿# Virtual environments
+venv/
+.venv/
+env/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+
+# Frontend source and node_modules (only frontend/dist is needed in container)
+frontend/node_modules/
+frontend/src/
+frontend/public/
+frontend/.vite/
+
+# Version control & OS artifacts
+.git/
+.gitignore
+.agents/
+.DS_Store
+Thumbs.db
+
+# Ephemeral runtime data
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/outputs/*
+!backend/outputs/.gitkeep

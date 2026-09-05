@@ -1,0 +1,27 @@
+﻿version: '3.8'
+
+services:
+  depthwizard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: depthwizard_app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEPTHWIZARD_HOST=0.0.0.0
+      - DEPTHWIZARD_PORT=8000
+      - DEPTHWIZARD_TARGET_DEVICE=CPU
+      - DEPTHWIZARD_ONNX_INTRA_OP_THREADS=2
+      - DEPTHWIZARD_MAX_UPLOAD_SIZE_MB=250
+    volumes:
+      # Mount model checkpoint directory (read-only)
+      - ./backend/models:/app/backend/models:ro
+      # Mount outputs directory for persistent GeoTIFF, OBJ, and error map exports
+      - ./backend/outputs:/app/backend/outputs:rw
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
