@@ -95,8 +95,8 @@ export const EvaluationModal: React.FC<EvaluationModalProps> = ({
                   {referenceFile ? referenceFile.name : 'No file selected (GeoTIFF recommended)'}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500">
-                Rule &sect;2: Evaluation requires real ground-truth elevation. No simulated scores or synthetic references are permitted.
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Rule &sect;2: Evaluation requires real ground-truth elevation. Accepts single-band GeoTIFF rasters (.tif/.tiff, e.g., Copernicus DEM, SRTM, or LiDAR DTM). Resampling is performed automatically if dimensions differ.
               </p>
             </div>
 

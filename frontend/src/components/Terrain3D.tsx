@@ -315,6 +315,31 @@ export const Terrain3D: React.FC<Terrain3DProps> = ({
     geometry.computeBoundingSphere();
     const radius = geometry.boundingSphere ? geometry.boundingSphere.radius : 80;
     cameraRef.current.position.set(0, -radius * 1.5, radius * 1.2);
+    cameraRef.current.up.set(0, 0, 1);
+    cameraRef.current.lookAt(0, 0, 0);
+    controlsRef.current.target.set(0, 0, 0);
+    controlsRef.current.update();
+  };
+
+  const handleTopDownView = () => {
+    if (!cameraRef.current || !controlsRef.current || !meshRef.current) return;
+    const geometry = meshRef.current.geometry;
+    geometry.computeBoundingSphere();
+    const radius = geometry.boundingSphere ? geometry.boundingSphere.radius : 80;
+    cameraRef.current.position.set(0, 0, radius * 2.2);
+    cameraRef.current.up.set(0, 1, 0);
+    cameraRef.current.lookAt(0, 0, 0);
+    controlsRef.current.target.set(0, 0, 0);
+    controlsRef.current.update();
+  };
+
+  const handleSideView = () => {
+    if (!cameraRef.current || !controlsRef.current || !meshRef.current) return;
+    const geometry = meshRef.current.geometry;
+    geometry.computeBoundingSphere();
+    const radius = geometry.boundingSphere ? geometry.boundingSphere.radius : 80;
+    cameraRef.current.position.set(radius * 2.0, 0, radius * 0.4);
+    cameraRef.current.up.set(0, 0, 1);
     cameraRef.current.lookAt(0, 0, 0);
     controlsRef.current.target.set(0, 0, 0);
     controlsRef.current.update();
@@ -378,6 +403,31 @@ export const Terrain3D: React.FC<Terrain3DProps> = ({
           >
             Wireframe
           </button>
+
+          {/* Camera View Presets */}
+          <div className="flex items-center bg-slate-950/80 p-0.5 rounded-lg border border-slate-800 text-[11px]">
+            <button
+              onClick={handleResetCamera}
+              title="Oblique Perspective View"
+              className="px-2 py-1 text-slate-400 hover:text-white rounded transition-colors"
+            >
+              Perspective
+            </button>
+            <button
+              onClick={handleTopDownView}
+              title="Top-Down GIS Nadir View"
+              className="px-2 py-1 text-slate-400 hover:text-white rounded transition-colors"
+            >
+              Nadir (GIS)
+            </button>
+            <button
+              onClick={handleSideView}
+              title="Side Profile View"
+              className="px-2 py-1 text-slate-400 hover:text-white rounded transition-colors"
+            >
+              Profile
+            </button>
+          </div>
 
           <button
             onClick={handleResetCamera}

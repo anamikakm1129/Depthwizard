@@ -151,7 +151,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onProcess, isProce
                 <div>
                   <h3 className="text-xs font-semibold text-slate-300">Ground Control Points (GCPs)</h3>
                   <p className="text-[11px] text-slate-400">
-                    Provide &ge;3 non-collinear GCPs with surveyed elevation (m) to calibrate to absolute DSM.
+                    Provide &ge;3 non-collinear GCPs with surveyed elevation (m) to calibrate relative disparity to metric elevation (CALIBRATED_DSM).
                   </p>
                 </div>
                 <button
@@ -244,6 +244,27 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onProcess, isProce
             </div>
           )}
         </div>
+
+        {/* Processing Stage Indicator */}
+        {isProcessing && (
+          <div className="bg-slate-950/80 border border-cyan-900/50 rounded-lg p-2.5 text-[11px] font-mono space-y-1.5">
+            <div className="flex items-center justify-between text-slate-400 text-[10px]">
+              <span className={status === 'validating' ? 'text-cyan-300 font-bold' : 'text-slate-500'}>1. Validation</span>
+              <span>&rarr;</span>
+              <span className={status === 'uploading' ? 'text-cyan-300 font-bold' : 'text-slate-500'}>2. Upload</span>
+              <span>&rarr;</span>
+              <span className={status === 'processing' ? 'text-cyan-300 font-bold' : 'text-slate-500'}>3. ONNX CPU Pipeline</span>
+            </div>
+            <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+              <div
+                className="bg-cyan-500 h-1.5 rounded-full transition-all duration-300 animate-pulse"
+                style={{
+                  width: status === 'validating' ? '25%' : status === 'uploading' ? '50%' : '85%',
+                }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Submit Button */}
         <button

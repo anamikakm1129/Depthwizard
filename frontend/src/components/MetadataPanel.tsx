@@ -1,5 +1,5 @@
-import React from 'react';
-import { Download, Compass, Clock, CheckCircle2, ShieldCheck, MapPin, BarChart3, AlertTriangle, Box, Activity } from 'lucide-react';
+import React, { useState } from 'react';
+import { Download, Compass, Clock, CheckCircle2, ShieldCheck, MapPin, BarChart3, AlertTriangle, Box, Activity, Copy, Check } from 'lucide-react';
 import type { ProcessImageResponse } from '../types/api';
 import { getDownloadUrl } from '../services/api';
 
@@ -10,6 +10,13 @@ interface MetadataPanelProps {
 
 export const MetadataPanel: React.FC<MetadataPanelProps> = ({ result, onOpenEvaluation }) => {
   const { input_metadata, calibration, validation, timings, depth_type, units, relief_metrics } = result;
+  const [copiedJobId, setCopiedJobId] = useState(false);
+
+  const handleCopyJobId = () => {
+    navigator.clipboard.writeText(result.job_id);
+    setCopiedJobId(true);
+    setTimeout(() => setCopiedJobId(false), 2000);
+  };
 
   const isMetric = calibration.is_metric;
 
@@ -18,7 +25,16 @@ export const MetadataPanel: React.FC<MetadataPanelProps> = ({ result, onOpenEval
       {/* Header & Calibration Badge */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-800">
         <div>
-          <span className="text-slate-400 font-mono text-[11px]">Job ID: {result.job_id.slice(0, 8)}...</span>
+          <div className="flex items-center space-x-1.5">
+            <span className="text-slate-400 font-mono text-[11px]">Job ID: {result.job_id.slice(0, 8)}...</span>
+            <button
+              onClick={handleCopyJobId}
+              title="Copy Full Job ID"
+              className="text-slate-500 hover:text-cyan-400 p-0.5 rounded transition-colors"
+            >
+              {copiedJobId ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+            </button>
+          </div>
           <h2 className="text-sm font-semibold text-white mt-0.5">Output &amp; Geospatial Reasoning</h2>
         </div>
         <div
