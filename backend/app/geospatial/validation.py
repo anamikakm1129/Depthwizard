@@ -111,7 +111,8 @@ class RasterValidator:
                 # 7. Metadata Tags
                 tags = dst.tags()
                 depth_type_tag = tags.get("DEPTH_TYPE", "")
-                if not is_calibrated and depth_type_tag != "RELATIVE_DEPTH":
+                valid_uncalibrated_tags = {"RELATIVE_DEPTH", "RELATIVE_DSM", "RDSM"}
+                if not is_calibrated and depth_type_tag not in valid_uncalibrated_tags:
                     tag_valid = False
                 else:
                     tag_valid = True

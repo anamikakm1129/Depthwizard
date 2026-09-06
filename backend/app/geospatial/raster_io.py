@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 from typing import Union, Optional, Tuple, Dict, Any
 import numpy as np
 import rasterio
@@ -96,10 +96,14 @@ class RasterIO:
         """
         # Rule §5 Enforcement: Relative output must never masquerade as metric elevation
         clean_type = depth_type.lower().strip()
-        if not is_calibrated and any(banned in clean_type for banned in BANNED_UNITLESS_LABELS):
+        is_explicitly_relative = (
+            clean_type in ("relative_depth", "relative_dsm", "rdsm")
+            or clean_type.startswith("relative_")
+        )
+        if not is_calibrated and not is_explicitly_relative and any(banned in clean_type for banned in BANNED_UNITLESS_LABELS):
             raise ValueError(
                 f"Scientific Integrity Violation: Output label '{depth_type}' implies metric elevation, "
-                "but calibration has not been performed. Output must be tagged as RELATIVE_DEPTH."
+                "but calibration has not been performed. Output must be tagged as RELATIVE_DEPTH or RELATIVE_DSM."
             )
 
         target_path = Path(config.target_path)

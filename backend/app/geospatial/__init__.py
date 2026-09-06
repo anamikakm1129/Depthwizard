@@ -15,6 +15,13 @@ from backend.app.geospatial.calibration_schemas import (
 from backend.app.geospatial.raster_io import RasterIO
 from backend.app.geospatial.validation import RasterValidator
 from backend.app.geospatial.calibration import MetricCalibrator
+from backend.app.geospatial.relative_dsm import (
+    RelativeSurfaceConvention,
+    RelativeReliefMetrics,
+    RelativeRasterConfig,
+    RelativeDSMProduct,
+    RelativeDSMGenerator
+)
 
 __all__ = [
     "GeoMetadata",
@@ -29,5 +36,10 @@ __all__ = [
     "CalibrationResult",
     "RasterIO",
     "RasterValidator",
-    "MetricCalibrator"
+    "MetricCalibrator",
+    "RelativeSurfaceConvention",
+    "RelativeReliefMetrics",
+    "RelativeRasterConfig",
+    "RelativeDSMProduct",
+    "RelativeDSMGenerator"
 ]
