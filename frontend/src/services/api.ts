@@ -10,7 +10,33 @@ export async function fetchHealth(): Promise<HealthResponse> {
   return resp.json();
 }
 
-export async function processImage(file: File, gcps?: GCPInput[]): Promise<ProcessImageResponse> {
+/**
+ * Sanitizes backend error details to prevent exposing stack traces or filesystem paths.
+ */
+export function sanitizeErrorMessage(rawMessage: string, status?: number): string {
+  if (!rawMessage || typeof rawMessage !== 'string') {
+    return status ? `Server returned HTTP ${status}` : 'Unknown processing error occurred.';
+  }
+
+  // If message contains traceback/filesystem paths, clean them
+  if (rawMessage.includes('Traceback (most recent call last)') || rawMessage.includes('File "') || rawMessage.includes('\\')) {
+    // Extract the final error line if available
+    const lines = rawMessage.trim().split('\n');
+    const lastLine = lines[lines.length - 1].trim();
+    if (lastLine.length > 0 && !lastLine.startsWith('File "')) {
+      return lastLine;
+    }
+    return 'An internal processing error occurred in the geospatial pipeline.';
+  }
+
+  return rawMessage;
+}
+
+export async function processImage(
+  file: File,
+  gcps?: GCPInput[],
+  onStageChange?: (stage: 'uploading' | 'processing') => void
+): Promise<ProcessImageResponse> {
   const formData = new FormData();
   formData.append('file', file);
 
@@ -18,18 +44,35 @@ export async function processImage(file: File, gcps?: GCPInput[]): Promise<Proce
     formData.append('gcps_json', JSON.stringify(gcps));
   }
 
-  const resp = await fetch(`${API_BASE}/api/v1/process`, {
-    method: 'POST',
-    body: formData,
-  });
+  onStageChange?.('uploading');
+
+  let resp: Response;
+  try {
+    // Notify processing stage once request is sent
+    setTimeout(() => {
+      onStageChange?.('processing');
+    }, 200);
+
+    resp = await fetch(`${API_BASE}/api/v1/process`, {
+      method: 'POST',
+      body: formData,
+    });
+  } catch (netErr: any) {
+    throw new Error('Network connection failed. Please ensure the DepthWizard backend server is running and reachable.');
+  }
 
   if (!resp.ok) {
     let errorDetail = `HTTP ${resp.status}`;
     try {
       const errJson = await resp.json();
-      if (errJson.detail) errorDetail = errJson.detail;
+      if (typeof errJson.detail === 'string') {
+        errorDetail = sanitizeErrorMessage(errJson.detail, resp.status);
+      } else if (Array.isArray(errJson.detail)) {
+        // Pydantic validation error array
+        errorDetail = errJson.detail.map((d: any) => d.msg || JSON.stringify(d)).join('; ');
+      }
     } catch {
-      // ignore
+      errorDetail = `Server request failed with status HTTP ${resp.status}.`;
     }
     throw new Error(errorDetail);
   }

@@ -16,6 +16,7 @@ export interface ImageMetadataResponse {
   crs: string | null;
   transform: [number, number, number, number, number, number] | null;
   bounds: [number, number, number, number] | null;
+  resolution?: [number, number] | null;
   nodata: number | null;
 }
 
@@ -55,12 +56,28 @@ export interface CalibrationResponse {
   rejection_reason: string | null;
 }
 
+export interface ReliefMetricsResponse {
+  min_value: number;
+  max_value: number;
+  mean_value: number;
+  std_value: number;
+  relief_range: number;
+  roughness_iqr: number;
+  p10: number;
+  p50: number;
+  p90: number;
+  valid_pixel_count: number;
+}
+
 export interface ProcessImageResponse {
   job_id: string;
   status: string;
   depth_type: string;
+  units: string;
+  is_metric: boolean;
   input_metadata: ImageMetadataResponse;
   validation: ValidationResponse;
+  relief_metrics?: ReliefMetricsResponse | null;
   calibration: CalibrationResponse;
   timings: Record<string, number>;
   geotiff_download_url: string;
@@ -72,9 +89,13 @@ export interface GCPInput {
   x_pixel: number;
   y_pixel: number;
   z_elevation: number;
+  x_geo?: number | null;
+  y_geo?: number | null;
   point_id?: string;
   description?: string;
 }
+
+export type ProcessingStatus = 'idle' | 'validating' | 'uploading' | 'processing' | 'success' | 'error';
 
 export interface ElevationMetrics {
   mae: number;

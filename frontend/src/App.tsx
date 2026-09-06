@@ -5,14 +5,14 @@ import { MetadataPanel } from './components/MetadataPanel';
 import { Comparison2D } from './components/Comparison2D';
 import { Terrain3D } from './components/Terrain3D';
 import { EvaluationModal } from './components/EvaluationModal';
-import type { HealthResponse, ProcessImageResponse, GCPInput } from './types/api';
+import type { HealthResponse, ProcessImageResponse, GCPInput, ProcessingStatus } from './types/api';
 import { fetchHealth, processImage } from './services/api';
 import { Layers, Box, AlertCircle } from 'lucide-react';
 
 export function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [healthLoading, setHealthLoading] = useState<boolean>(true);
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>('idle');
   const [processResult, setProcessResult] = useState<ProcessImageResponse | null>(null);
   const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -27,7 +27,7 @@ export function App() {
   }, []);
 
   const handleProcess = async (file: File, gcps?: GCPInput[]) => {
-    setIsProcessing(true);
+    setProcessingStatus('validating');
     setErrorMessage(null);
 
     // Create local object URL for instant 2D preview & texture mapping
@@ -35,14 +35,18 @@ export function App() {
     setOriginalImageUrl(localUrl);
 
     try {
-      const res = await processImage(file, gcps);
+      const res = await processImage(file, gcps, (stage) => {
+        setProcessingStatus(stage);
+      });
       setProcessResult(res);
+      setProcessingStatus('success');
     } catch (err: any) {
       setErrorMessage(err.message || 'Processing failed. Please check backend server.');
-    } finally {
-      setIsProcessing(false);
+      setProcessingStatus('error');
     }
   };
+
+  const isProcessing = processingStatus === 'validating' || processingStatus === 'uploading' || processingStatus === 'processing';
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
@@ -59,8 +63,7 @@ export function App() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Upload & Metadata */}
           <div className="lg:col-span-4 space-y-6">
-            <UploadSection onProcess={handleProcess} isProcessing={isProcessing} />
-            {processResult && <MetadataPanel result={processResult} />}
+            <UploadSection onProcess={handleProcess} isProcessing={isProcessing} status={processingStatus} />
             {processResult && (
               <MetadataPanel
                 result={processResult}

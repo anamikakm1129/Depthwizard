@@ -9,7 +9,7 @@ interface MetadataPanelProps {
 }
 
 export const MetadataPanel: React.FC<MetadataPanelProps> = ({ result, onOpenEvaluation }) => {
-  const { input_metadata, calibration, validation, timings, depth_type } = result;
+  const { input_metadata, calibration, validation, timings, depth_type, units, relief_metrics } = result;
 
   const isMetric = calibration.is_metric;
 
@@ -41,7 +41,7 @@ export const MetadataPanel: React.FC<MetadataPanelProps> = ({ result, onOpenEval
             <span>Relative Disparity Surface (Uncalibrated)</span>
           </p>
           <p className="text-[11px] text-cyan-200/80 leading-relaxed">
-            This output captures relative optical disparity [0.0, 1.0]. Per Rule §5, georeferencing alone does not constitute metric height calibration. Vertical values represent unitless scene relief.
+            Units: <span className="font-mono text-cyan-300 font-semibold">{units || 'unitless_disparity'}</span>. This output captures relative optical disparity [0.0, 1.0]. Per Rule §5, georeferencing alone does not constitute metric height calibration. Vertical values represent unitless scene relief.
           </p>
         </div>
       ) : (
@@ -51,7 +51,7 @@ export const MetadataPanel: React.FC<MetadataPanelProps> = ({ result, onOpenEval
             <span>Validated Metric DSM (Meters Above Datum)</span>
           </p>
           <p className="text-[11px] text-emerald-200/80 leading-relaxed">
-            Calibrated via surveyed control points. Scale: {calibration.scale_factor?.toFixed(3)}, Shift: {calibration.shift_offset?.toFixed(2)}m, RMSE: {calibration.metrics?.rmse.toFixed(2)}m (R&sup2;: {calibration.metrics?.r_squared.toFixed(3)}).
+            Units: <span className="font-mono text-emerald-300 font-semibold">{units || 'meters'}</span>. Calibrated via surveyed control points. Scale: {calibration.scale_factor?.toFixed(3)}, Shift: {calibration.shift_offset?.toFixed(2)}m, RMSE: {calibration.metrics?.rmse.toFixed(2)}m (R&sup2;: {calibration.metrics?.r_squared.toFixed(3)}).
           </p>
         </div>
       )}
@@ -89,6 +89,14 @@ export const MetadataPanel: React.FC<MetadataPanelProps> = ({ result, onOpenEval
               {input_metadata.has_georeference ? 'Yes (Valid CRS)' : 'No (Local Grid)'}
             </span>
           </div>
+          {input_metadata.resolution && (
+            <div className="bg-slate-950/60 p-2 rounded border border-slate-800 col-span-2 flex justify-between">
+              <span className="text-slate-500 text-[10px]">Spatial Resolution:</span>
+              <span className="text-slate-200">
+                {Math.abs(input_metadata.resolution[0]).toFixed(3)} m &times; {Math.abs(input_metadata.resolution[1]).toFixed(3)} m/px
+              </span>
+            </div>
+          )}
           <div className="bg-slate-950/60 p-2 rounded border border-slate-800 col-span-2">
             <span className="text-slate-500 text-[10px] block">Coordinate Reference System</span>
             <span className="break-all">{input_metadata.crs || 'Local / None (Unprojected)'}</span>
@@ -96,11 +104,35 @@ export const MetadataPanel: React.FC<MetadataPanelProps> = ({ result, onOpenEval
         </div>
       </div>
 
+      {/* Surface Relief Metrics (Statistical Roughness) */}
+      {relief_metrics && (
+        <div>
+          <h3 className="text-slate-300 font-semibold text-[11px] uppercase tracking-wider mb-2 flex items-center space-x-1">
+            <BarChart3 className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Relative Surface Relief Statistics</span>
+          </h3>
+          <div className="grid grid-cols-3 gap-2 text-slate-300 font-mono text-[11px]">
+            <div className="bg-slate-950/60 p-2 rounded border border-slate-800 text-center">
+              <span className="text-slate-500 text-[10px] block">Relief Range</span>
+              <span className="text-cyan-300">{relief_metrics.relief_range.toFixed(3)}</span>
+            </div>
+            <div className="bg-slate-950/60 p-2 rounded border border-slate-800 text-center">
+              <span className="text-slate-500 text-[10px] block">Roughness (IQR)</span>
+              <span className="text-cyan-300">{relief_metrics.roughness_iqr.toFixed(3)}</span>
+            </div>
+            <div className="bg-slate-950/60 p-2 rounded border border-slate-800 text-center">
+              <span className="text-slate-500 text-[10px] block">P50 (Median)</span>
+              <span className="text-cyan-300">{relief_metrics.p50.toFixed(3)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Numerical Validation Stats */}
       <div>
         <h3 className="text-slate-300 font-semibold text-[11px] uppercase tracking-wider mb-2 flex items-center space-x-1">
           <BarChart3 className="w-3.5 h-3.5 text-cyan-400" />
-          <span>Surface Statistics</span>
+          <span>Surface Statistics (Array)</span>
         </h3>
         <div className="grid grid-cols-4 gap-2 text-slate-300 font-mono text-[11px]">
           <div className="bg-slate-950/60 p-2 rounded border border-slate-800 text-center">
@@ -135,6 +167,14 @@ export const MetadataPanel: React.FC<MetadataPanelProps> = ({ result, onOpenEval
               {((timings.inference_seconds !== undefined ? timings.inference_seconds * 1000 : (timings.inference_ms || 0))).toFixed(0)} ms
             </span>
           </div>
+          {timings.relative_dsm_seconds !== undefined && (
+            <div className="flex justify-between">
+              <span>Relative DSM:</span>
+              <span className="text-cyan-300 font-semibold">
+                {(timings.relative_dsm_seconds * 1000).toFixed(0)} ms
+              </span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span>Pipeline Total:</span>
             <span className="text-slate-200 font-semibold">

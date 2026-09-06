@@ -1,16 +1,18 @@
 import React, { useState, useRef } from 'react';
 import { UploadCloud, FileImage, Settings2, Play, AlertCircle, Plus, Trash2, Loader2 } from 'lucide-react';
-import type { GCPInput } from '../types/api';
+import type { GCPInput, ProcessingStatus } from '../types/api';
 
 interface UploadSectionProps {
   onProcess: (file: File, gcps?: GCPInput[]) => void;
   isProcessing: boolean;
+  status?: ProcessingStatus;
 }
 
-export const UploadSection: React.FC<UploadSectionProps> = ({ onProcess, isProcessing }) => {
+export const UploadSection: React.FC<UploadSectionProps> = ({ onProcess, isProcessing, status = 'idle' }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [showGcpPanel, setShowGcpPanel] = useState(false);
+  const [showGeoCoords, setShowGeoCoords] = useState(false);
   const [gcps, setGcps] = useState<GCPInput[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -60,6 +62,21 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onProcess, isProce
     e.preventDefault();
     if (!selectedFile || isProcessing) return;
     onProcess(selectedFile, gcps.length > 0 ? gcps : undefined);
+  };
+
+  const getStatusLabel = () => {
+    switch (status) {
+      case 'validating':
+        return 'Validating input file...';
+      case 'uploading':
+        return 'Uploading raster payload...';
+      case 'processing':
+        return 'Running ONNX CPU Inference & Geospatial Pipeline...';
+      case 'success':
+        return 'Pipeline Complete';
+      default:
+        return 'Running ONNX CPU Inference & Geospatial Pipeline...';
+    }
   };
 
   return (
@@ -152,44 +169,74 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onProcess, isProce
                   No GCPs specified. Pipeline will produce relative disparity surface ([0.0, 1.0]).
                 </p>
               ) : (
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 pb-1">
+                    <span>GCP Points List ({gcps.length})</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowGeoCoords(!showGeoCoords)}
+                      className="text-cyan-400 hover:text-cyan-300 text-[10px] underline"
+                    >
+                      {showGeoCoords ? 'Hide Map Coordinates' : 'Add Map Coordinates (UTM/Geo)'}
+                    </button>
+                  </div>
                   {gcps.map((gcp, idx) => (
-                    <div key={idx} className="flex items-center space-x-2 text-xs bg-slate-900 p-2 rounded border border-slate-800">
-                      <input
-                        type="text"
-                        placeholder="ID"
-                        value={gcp.point_id || ''}
-                        onChange={(e) => handleUpdateGcp(idx, 'point_id', e.target.value)}
-                        className="w-16 bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-slate-200 text-xs font-mono"
-                      />
-                      <input
-                        type="number"
-                        placeholder="X px"
-                        value={gcp.x_pixel}
-                        onChange={(e) => handleUpdateGcp(idx, 'x_pixel', parseFloat(e.target.value) || 0)}
-                        className="w-16 bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-slate-200 text-xs font-mono"
-                      />
-                      <input
-                        type="number"
-                        placeholder="Y px"
-                        value={gcp.y_pixel}
-                        onChange={(e) => handleUpdateGcp(idx, 'y_pixel', parseFloat(e.target.value) || 0)}
-                        className="w-16 bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-slate-200 text-xs font-mono"
-                      />
-                      <input
-                        type="number"
-                        placeholder="Elev (m)"
-                        value={gcp.z_elevation}
-                        onChange={(e) => handleUpdateGcp(idx, 'z_elevation', parseFloat(e.target.value) || 0)}
-                        className="w-20 bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-emerald-400 text-xs font-mono"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveGcp(idx)}
-                        className="text-slate-500 hover:text-rose-400 p-1"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                    <div key={idx} className="space-y-1 bg-slate-900 p-2 rounded border border-slate-800">
+                      <div className="flex items-center space-x-2 text-xs">
+                        <input
+                          type="text"
+                          placeholder="ID"
+                          value={gcp.point_id || ''}
+                          onChange={(e) => handleUpdateGcp(idx, 'point_id', e.target.value)}
+                          className="w-16 bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-slate-200 text-xs font-mono"
+                        />
+                        <input
+                          type="number"
+                          placeholder="X px"
+                          value={gcp.x_pixel}
+                          onChange={(e) => handleUpdateGcp(idx, 'x_pixel', parseFloat(e.target.value) || 0)}
+                          className="w-16 bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-slate-200 text-xs font-mono"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Y px"
+                          value={gcp.y_pixel}
+                          onChange={(e) => handleUpdateGcp(idx, 'y_pixel', parseFloat(e.target.value) || 0)}
+                          className="w-16 bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-slate-200 text-xs font-mono"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Elev (m)"
+                          value={gcp.z_elevation}
+                          onChange={(e) => handleUpdateGcp(idx, 'z_elevation', parseFloat(e.target.value) || 0)}
+                          className="w-20 bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-emerald-400 text-xs font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveGcp(idx)}
+                          className="text-slate-500 hover:text-rose-400 p-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      {showGeoCoords && (
+                        <div className="flex items-center space-x-2 text-[11px] pt-1 border-t border-slate-800/80">
+                          <input
+                            type="number"
+                            placeholder="X Map / UTM"
+                            value={gcp.x_geo ?? ''}
+                            onChange={(e) => handleUpdateGcp(idx, 'x_geo', e.target.value ? parseFloat(e.target.value) : null)}
+                            className="w-24 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-cyan-300 text-[11px] font-mono"
+                          />
+                          <input
+                            type="number"
+                            placeholder="Y Map / UTM"
+                            value={gcp.y_geo ?? ''}
+                            onChange={(e) => handleUpdateGcp(idx, 'y_geo', e.target.value ? parseFloat(e.target.value) : null)}
+                            className="w-24 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-cyan-300 text-[11px] font-mono"
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -211,7 +258,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onProcess, isProce
           {isProcessing ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin text-cyan-300" />
-              <span>Running ONNX CPU Inference &amp; Geospatial Pipeline...</span>
+              <span>{getStatusLabel()}</span>
             </>
           ) : (
             <>
