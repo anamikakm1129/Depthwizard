@@ -14,7 +14,7 @@ Scientific Principles:
 from enum import Enum
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Union, Any, List
 import numpy as np
 
 from backend.app.geospatial.schemas import GeoMetadata, RasterExportConfig, ExportResult
@@ -69,6 +69,36 @@ class RelativeDSMProduct:
     metrics: RelativeReliefMetrics
     geo_metadata: GeoMetadata
     export_result: Optional[ExportResult] = None
+
+    def calibrate(
+        self,
+        gcps: Optional[list] = None,
+        reference_raster: Optional[np.ndarray] = None,
+        source_type: Any = None,
+        source_identifier: Optional[str] = None,
+        nodata_value: Optional[float] = None,
+        max_rmse_threshold: float = 15.0,
+        min_r2_threshold: float = 0.20,
+        strict_raise: bool = False
+    ) -> Any:
+        """
+        Calibrates this relative DSM product against GCPs or reference elevation rasters.
+        Returns a MetricElevationProduct.
+        """
+        from backend.app.geospatial.calibration import MetricCalibrator
+        from backend.app.geospatial.calibration_schemas import CalibrationSourceType
+        st = source_type or CalibrationSourceType.NONE
+        return MetricCalibrator.calibrate_relative_dsm(
+            product=self,
+            gcps=gcps,
+            reference_raster=reference_raster,
+            source_type=st,
+            source_identifier=source_identifier,
+            nodata_value=nodata_value,
+            max_rmse_threshold=max_rmse_threshold,
+            min_r2_threshold=min_r2_threshold,
+            strict_raise=strict_raise
+        )
 
 
 class RelativeDSMGenerator:
@@ -245,4 +275,36 @@ class RelativeDSMGenerator:
             cls.export(product, Path(export_path))
 
         return product
+
+    @classmethod
+    def process_and_calibrate(
+        cls,
+        input_source: Union[str, Path],
+        pipeline: DepthPipeline,
+        gcps: Optional[List[Any]] = None,
+        reference_raster: Optional[np.ndarray] = None,
+        source_type: Any = None,
+        source_identifier: Optional[str] = None,
+        config: Optional[RelativeRasterConfig] = None,
+        export_path: Optional[Union[str, Path]] = None,
+        strict_raise: bool = False
+    ) -> Any:
+        """
+        Complete end-to-end pipeline:
+        RGB input -> Real monocular inference -> Relative depth -> Relative DSM -> Reference/GCP calibration -> Metric elevation product -> Optional GeoTIFF export.
+        """
+        product = cls.process_raster(input_source=input_source, pipeline=pipeline, config=config)
+        calibrated_product = product.calibrate(
+            gcps=gcps,
+            reference_raster=reference_raster,
+            source_type=source_type,
+            source_identifier=source_identifier,
+            strict_raise=strict_raise
+        )
+        if export_path:
+            from backend.app.geospatial.calibration import MetricCalibrator
+            MetricCalibrator.export_metric_elevation(calibrated_product, Path(export_path))
+
+        return calibrated_product
+
 

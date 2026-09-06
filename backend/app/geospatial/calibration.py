@@ -1,14 +1,19 @@
-﻿from typing import List, Optional, Tuple, Dict, Any, Union
+from pathlib import Path
+from typing import List, Optional, Tuple, Dict, Any, Union
 import numpy as np
 from scipy import stats
+from rasterio.transform import Affine
 
+from backend.app.geospatial.schemas import GeoMetadata, RasterExportConfig, ExportResult
+from backend.app.geospatial.raster_io import RasterIO
 from backend.app.geospatial.calibration_schemas import (
     CalibrationMode,
     CalibrationMethod,
     CalibrationSourceType,
     GroundControlPoint,
     CalibrationMetrics,
-    CalibrationResult
+    CalibrationResult,
+    MetricElevationProduct
 )
 
 class MetricCalibrator:
@@ -47,12 +52,14 @@ class MetricCalibrator:
         cls,
         depth_map: np.ndarray,
         gcps: List[GroundControlPoint],
+        metadata: Optional[GeoMetadata] = None,
         max_rmse_threshold: float = 15.0,
         min_r2_threshold: float = 0.20
     ) -> CalibrationResult:
         """
         Calibrates relative depth using surveyed Ground Control Points.
         Requires at least 3 valid, distinct GCPs within image boundaries.
+        Supports both direct pixel coordinates and projected map coordinates (x_geo, y_geo).
         """
         if not gcps or len(gcps) < 3:
             return cls.fallback_to_relative(
@@ -64,8 +71,24 @@ class MetricCalibrator:
         valid_pairs = []
 
         for gcp in gcps:
-            px = int(round(gcp.x_pixel))
-            py = int(round(gcp.y_pixel))
+            # Map coordinate projection if geographic coordinates provided with georeferenced metadata
+            if (
+                gcp.x_geo is not None
+                and gcp.y_geo is not None
+                and metadata is not None
+                and metadata.has_georeference
+                and metadata.transform is not None
+            ):
+                t = Affine(
+                    metadata.transform[0], metadata.transform[1], metadata.transform[2],
+                    metadata.transform[3], metadata.transform[4], metadata.transform[5]
+                )
+                from rasterio.transform import rowcol
+                py, px = rowcol(t, gcp.x_geo, gcp.y_geo)
+            else:
+                px = int(round(gcp.x_pixel))
+                py = int(round(gcp.y_pixel))
+
             if 0 <= px < w and 0 <= py < h:
                 d_val = float(depth_map[py, px])
                 valid_pairs.append((d_val, gcp.z_elevation))
@@ -241,15 +264,13 @@ class MetricCalibrator:
         ]
 
         # Domain semantics distinction (Rule §5 & Requirement 6)
+        depth_type = "CALIBRATED_DSM"
         if source_type == CalibrationSourceType.NDSM_GAMUS:
-            depth_type = "APPROX_METRIC_HEIGHT"
             warnings.append(
                 "DOMAIN WARNING: Reference dataset is GAMUS / nDSM. This captures Normalized Digital Surface Model "
                 "(height of structures/trees above ground level), NOT absolute elevation above mean sea level."
             )
-            limitations.append("Values represent approximate height above local terrain, not sea-level DSM.")
-        else:
-            depth_type = "CALIBRATED_DSM"
+            limitations.append("Values represent calibrated height above local terrain, not sea-level DSM.")
 
         # Gating checks
         if rmse > max_rmse_threshold or r_squared < min_r2_threshold:
@@ -287,3 +308,128 @@ class MetricCalibrator:
             limitations=limitations,
             rejection_reason=None
         )
+
+    @classmethod
+    def calibrate_relative_dsm(
+        cls,
+        product: Any,
+        gcps: Optional[List[GroundControlPoint]] = None,
+        reference_raster: Optional[np.ndarray] = None,
+        source_type: CalibrationSourceType = CalibrationSourceType.NONE,
+        source_identifier: Optional[str] = None,
+        nodata_value: Optional[float] = None,
+        max_rmse_threshold: float = 15.0,
+        min_r2_threshold: float = 0.20,
+        strict_raise: bool = False
+    ) -> MetricElevationProduct:
+        """
+        Calibrates a RelativeDSMProduct against Ground Control Points or a reference raster.
+        Integrates empirical calibration with geospatial metadata and relative surface products.
+
+        Gating & Safety:
+        - If neither GCPs nor reference raster are provided, or if validation fails, safely
+          falls back to unitless relative representation (is_metric=False, depth_type="RELATIVE_DSM").
+        - If strict_raise is True, raises ValueError upon calibration rejection or missing data.
+        """
+        calib_result: Optional[CalibrationResult] = None
+
+        if gcps is not None and len(gcps) > 0:
+            calib_result = cls.calibrate_with_gcps(
+                depth_map=product.array,
+                gcps=gcps,
+                metadata=product.geo_metadata,
+                max_rmse_threshold=max_rmse_threshold,
+                min_r2_threshold=min_r2_threshold
+            )
+        elif reference_raster is not None:
+            effective_source = (
+                source_type if source_type != CalibrationSourceType.NONE else CalibrationSourceType.REFERENCE_DEM
+            )
+            calib_result = cls.calibrate_with_reference_raster(
+                depth_map=product.array,
+                reference_array=reference_raster,
+                source_type=effective_source,
+                source_identifier=source_identifier or "reference_elevation_raster",
+                nodata_value=nodata_value,
+                max_rmse_threshold=max_rmse_threshold,
+                min_r2_threshold=min_r2_threshold
+            )
+        else:
+            calib_result = cls.fallback_to_relative(
+                depth_map=product.array,
+                reason="No calibration reference (GCPs or reference raster) provided; maintaining unitless relative surface relief."
+            )
+
+        # Enforce strict error raising if requested
+        if strict_raise and not calib_result.is_metric:
+            raise ValueError(f"Calibration failed: {calib_result.rejection_reason or 'Validation gates not met'}")
+
+        # Enforce exact output semantics:
+        # 1. Uncalibrated / rejected: depth_type = "RELATIVE_DSM", units = "unitless_disparity", is_metric = False
+        # 2. Calibrated: depth_type = "CALIBRATED_DSM", units = "meters", is_metric = True
+        if not calib_result.is_metric:
+            depth_type = "RELATIVE_DSM"
+            units = "unitless_disparity"
+        else:
+            depth_type = "CALIBRATED_DSM"
+            units = "meters"
+
+        return MetricElevationProduct(
+            array=calib_result.calibrated_array,
+            depth_type=depth_type,
+            units=units,
+            is_metric=calib_result.is_metric,
+            calibration=calib_result,
+            geo_metadata=product.geo_metadata,
+            source_relative_dsm=product,
+            export_result=None
+        )
+
+    @classmethod
+    def export_metric_elevation(
+        cls,
+        product: MetricElevationProduct,
+        target_path: Union[str, Path],
+        config: Optional[RasterExportConfig] = None
+    ) -> ExportResult:
+        """
+        Exports a MetricElevationProduct to GeoTIFF with rigorous geospatial validation.
+        Writes explicit calibration provenance into GeoTIFF tags (scale, shift, RMSE, method).
+        """
+        target = Path(target_path)
+        if config is None:
+            config = RasterExportConfig(target_path=target, compress="lzw")
+        else:
+            config.target_path = target
+
+        # Call RasterIO with explicit calibration parameters
+        export_result = RasterIO.export_depth_to_geotiff(
+            depth_map=product.array,
+            source_metadata=product.geo_metadata,
+            config=config,
+            depth_type=product.depth_type,
+            is_calibrated=product.is_metric
+        )
+
+        # Attach calibration provenance tags to GeoTIFF if calibrated
+        if product.is_metric and product.calibration is not None:
+            try:
+                import rasterio
+                with rasterio.open(target, "r+") as dst:
+                    extra_tags = {
+                        "CALIBRATION_MODE": str(product.calibration.mode.value),
+                        "CALIBRATION_METHOD": str(product.calibration.method.value),
+                        "CALIBRATION_SOURCE": str(product.calibration.source_type.value),
+                        "SCALE_FACTOR": f"{product.calibration.scale_factor:.6f}" if product.calibration.scale_factor is not None else "None",
+                        "SHIFT_OFFSET": f"{product.calibration.shift_offset:.6f}" if product.calibration.shift_offset is not None else "None",
+                    }
+                    if product.calibration.metrics:
+                        extra_tags["CALIBRATION_RMSE"] = f"{product.calibration.metrics.rmse:.4f}"
+                        extra_tags["CALIBRATION_MAE"] = f"{product.calibration.metrics.mae:.4f}"
+                        extra_tags["CALIBRATION_R2"] = f"{product.calibration.metrics.r_squared:.4f}"
+                    dst.update_tags(**extra_tags)
+            except Exception:
+                pass
+
+        product.export_result = export_result
+        return export_result

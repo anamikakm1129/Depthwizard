@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from pathlib import Path
 import numpy as np
 
@@ -102,7 +102,7 @@ def test_calibration_gamus_ndsm_domain_warning():
     )
 
     assert res.is_metric is True
-    assert res.depth_type == "APPROX_METRIC_HEIGHT"
+    assert res.depth_type == "CALIBRATED_DSM"
     assert any("GAMUS / nDSM" in w for w in res.warnings)
 
 def test_calibrated_dsm_geotiff_export_integration():

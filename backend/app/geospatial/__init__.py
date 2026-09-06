@@ -10,7 +10,8 @@ from backend.app.geospatial.calibration_schemas import (
     CalibrationSourceType,
     GroundControlPoint,
     CalibrationMetrics,
-    CalibrationResult
+    CalibrationResult,
+    MetricElevationProduct
 )
 from backend.app.geospatial.raster_io import RasterIO
 from backend.app.geospatial.validation import RasterValidator
@@ -34,6 +35,7 @@ __all__ = [
     "GroundControlPoint",
     "CalibrationMetrics",
     "CalibrationResult",
+    "MetricElevationProduct",
     "RasterIO",
     "RasterValidator",
     "MetricCalibrator",

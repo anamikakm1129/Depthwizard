@@ -1,7 +1,9 @@
-﻿from dataclasses import dataclass, field
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, List, Tuple, Dict, Any
 import numpy as np
+
+from backend.app.geospatial.schemas import GeoMetadata, ExportResult
 
 class CalibrationMode(str, Enum):
     UNCALIBRATED_RELATIVE = "uncalibrated_relative"
@@ -27,6 +29,8 @@ class GroundControlPoint:
     x_pixel: float
     y_pixel: float
     z_elevation: float
+    x_geo: Optional[float] = None
+    y_geo: Optional[float] = None
     point_id: Optional[str] = None
     description: Optional[str] = None
 
@@ -56,3 +60,18 @@ class CalibrationResult:
     warnings: List[str] = field(default_factory=list)
     limitations: List[str] = field(default_factory=list)
     rejection_reason: Optional[str] = None
+
+@dataclass
+class MetricElevationProduct:
+    """
+    Standardized metric elevation output resulting from rigorous
+    calibration of a RelativeDSMProduct against verified reference data.
+    """
+    array: np.ndarray
+    depth_type: str
+    units: str
+    is_metric: bool
+    calibration: CalibrationResult
+    geo_metadata: GeoMetadata
+    source_relative_dsm: Optional[Any] = None
+    export_result: Optional[ExportResult] = None
