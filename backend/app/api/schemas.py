@@ -27,6 +27,7 @@ class ImageMetadataResponse(BaseModel):
     crs: Optional[str] = None
     transform: Optional[Tuple[float, float, float, float, float, float]] = None
     bounds: Optional[Tuple[float, float, float, float]] = None
+    resolution: Optional[Tuple[float, float]] = None
     nodata: Optional[float] = None
 
 class ValidationResponse(BaseModel):
@@ -62,12 +63,27 @@ class CalibrationResponse(BaseModel):
     limitations: List[str] = Field(default_factory=list)
     rejection_reason: Optional[str] = None
 
+class ReliefMetricsResponse(BaseModel):
+    min_value: float
+    max_value: float
+    mean_value: float
+    std_value: float
+    relief_range: float
+    roughness_iqr: float
+    p10: float
+    p50: float
+    p90: float
+    valid_pixel_count: int
+
 class ProcessImageResponse(BaseModel):
     job_id: str
     status: str
     depth_type: str
+    units: str = "unitless_disparity"
+    is_metric: bool = False
     input_metadata: ImageMetadataResponse
     validation: ValidationResponse
+    relief_metrics: Optional[ReliefMetricsResponse] = None
     calibration: CalibrationResponse
     timings: Dict[str, float]
     geotiff_download_url: str
@@ -78,5 +94,7 @@ class GCPInput(BaseModel):
     x_pixel: float
     y_pixel: float
     z_elevation: float
+    x_geo: Optional[float] = None
+    y_geo: Optional[float] = None
     point_id: Optional[str] = None
     description: Optional[str] = None

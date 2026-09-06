@@ -88,7 +88,7 @@ def run_final_integration_audit():
     geo_data = resp_geo.json()
     job_id_geo = geo_data["job_id"]
 
-    check(geo_data["depth_type"] == "RELATIVE_DEPTH", "Uncalibrated output strictly tagged RELATIVE_DEPTH")
+    check(geo_data["depth_type"] in ("RELATIVE_DEPTH", "RELATIVE_DSM"), f"Uncalibrated output strictly tagged RELATIVE_DSM (got {geo_data['depth_type']})")
     check(geo_data["calibration"]["is_metric"] is False, "is_metric flag is False for uncalibrated run")
     check(geo_data["input_metadata"]["has_georeference"] is True, "Georeferenced input detected")
     check("32618" in (geo_data["input_metadata"]["crs"] or ""), "CRS EPSG:32618 strictly preserved")

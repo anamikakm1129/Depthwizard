@@ -41,10 +41,16 @@ def test_api_process_geotiff_uncalibrated():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "completed"
-    assert data["depth_type"] == "RELATIVE_DEPTH"
+    assert data["depth_type"] == "RELATIVE_DSM"
+    assert data["units"] == "unitless_disparity"
+    assert data["is_metric"] is False
     assert data["calibration"]["is_metric"] is False
     assert data["input_metadata"]["has_georeference"] is True
     assert data["input_metadata"]["crs"] == "EPSG:32618"
+    assert data["input_metadata"]["resolution"] is not None
+    assert "relief_metrics" in data
+    assert data["relief_metrics"]["valid_pixel_count"] > 0
+    assert "relative_dsm_seconds" in data["timings"]
     assert "inference_seconds" in data["timings"]
     assert "mesh_download_url" in data
     assert data["mesh_download_url"] is not None
@@ -76,9 +82,9 @@ def test_api_process_with_gcps():
 
     # Construct consistent GCP elevations: Z = 25.0 * d + 100.0
     consistent_gcps = [
-        {"x_pixel": 0.0, "y_pixel": 0.0, "z_elevation": 25.0 * d1 + 100.0},
-        {"x_pixel": 395.0, "y_pixel": 359.0, "z_elevation": 25.0 * d2 + 100.0},
-        {"x_pixel": 790.0, "y_pixel": 717.0, "z_elevation": 25.0 * d3 + 100.0}
+        {"x_pixel": 0.0, "y_pixel": 0.0, "z_elevation": 25.0 * d1 + 100.0, "point_id": "GCP_1"},
+        {"x_pixel": 395.0, "y_pixel": 359.0, "z_elevation": 25.0 * d2 + 100.0, "point_id": "GCP_2"},
+        {"x_pixel": 790.0, "y_pixel": 717.0, "z_elevation": 25.0 * d3 + 100.0, "point_id": "GCP_3"}
     ]
     with open(path, "rb") as f:
         resp_valid = client.post(
@@ -89,6 +95,8 @@ def test_api_process_with_gcps():
     assert resp_valid.status_code == 200
     data_valid = resp_valid.json()
     assert data_valid["depth_type"] == "CALIBRATED_DSM"
+    assert data_valid["units"] == "meters"
+    assert data_valid["is_metric"] is True
     assert data_valid["calibration"]["is_metric"] is True
     assert data_valid["calibration"]["scale_factor"] is not None
 
@@ -106,7 +114,9 @@ def test_api_process_with_gcps():
         )
     assert resp_noisy.status_code == 200
     data_noisy = resp_noisy.json()
-    assert data_noisy["depth_type"] == "RELATIVE_DEPTH"
+    assert data_noisy["depth_type"] == "RELATIVE_DSM"
+    assert data_noisy["units"] == "unitless_disparity"
+    assert data_noisy["is_metric"] is False
     assert data_noisy["calibration"]["is_metric"] is False
     assert data_noisy["calibration"]["rejection_reason"] is not None
 
@@ -158,7 +168,9 @@ def test_api_process_aerial_geotiff():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "completed"
-    assert data["depth_type"] == "RELATIVE_DEPTH"
+    assert data["depth_type"] == "RELATIVE_DSM"
+    assert data["units"] == "unitless_disparity"
+    assert data["is_metric"] is False
     assert data["input_metadata"]["has_georeference"] is True
     assert data["input_metadata"]["crs"] == "EPSG:32621"
     assert data["mesh_download_url"] is not None
@@ -186,8 +198,56 @@ def test_api_process_standard_png_non_georeferenced():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "completed"
-    assert data["depth_type"] == "RELATIVE_DEPTH"
+    assert data["depth_type"] == "RELATIVE_DSM"
+    assert data["units"] == "unitless_disparity"
+    assert data["is_metric"] is False
     assert data["input_metadata"]["has_georeference"] is False
     assert data["input_metadata"]["crs"] is None
     assert data["mesh_download_url"] is not None
+
+def test_api_process_with_gcps_geo_coordinates():
+    path = DATA_DIR / "sample_geotiff.tif"
+    assert path.exists()
+
+    # Run uncalibrated first to read true relative values
+    with open(path, "rb") as f:
+        resp_uncalib = client.post(
+            "/api/v1/process",
+            files={"file": ("sample_geotiff.tif", f, "image/tiff")}
+        )
+    assert resp_uncalib.status_code == 200
+    geotiff_url = resp_uncalib.json()["geotiff_download_url"]
+    filename = Path(geotiff_url).name
+
+    import rasterio
+    with rasterio.open(f"backend/outputs/{filename}") as ds:
+        d1 = float(ds.read(1)[10, 10])
+        d2 = float(ds.read(1)[200, 200])
+        d3 = float(ds.read(1)[400, 400])
+        transform = ds.transform
+        x_geo1, y_geo1 = rasterio.transform.xy(transform, 10, 10)
+        x_geo2, y_geo2 = rasterio.transform.xy(transform, 200, 200)
+        x_geo3, y_geo3 = rasterio.transform.xy(transform, 400, 400)
+
+    # Provide GCPs with both pixel coordinates and geo coordinates
+    geo_gcps = [
+        {"x_pixel": 10.0, "y_pixel": 10.0, "x_geo": x_geo1, "y_geo": y_geo1, "z_elevation": 20.0 * d1 + 50.0, "point_id": "GEO_1"},
+        {"x_pixel": 200.0, "y_pixel": 200.0, "x_geo": x_geo2, "y_geo": y_geo2, "z_elevation": 20.0 * d2 + 50.0, "point_id": "GEO_2"},
+        {"x_pixel": 400.0, "y_pixel": 400.0, "x_geo": x_geo3, "y_geo": y_geo3, "z_elevation": 20.0 * d3 + 50.0, "point_id": "GEO_3"}
+    ]
+
+    with open(path, "rb") as f:
+        resp_calib = client.post(
+            "/api/v1/process",
+            files={"file": ("sample_geotiff.tif", f, "image/tiff")},
+            data={"gcps_json": json.dumps(geo_gcps)}
+        )
+    assert resp_calib.status_code == 200
+    data_calib = resp_calib.json()
+    assert data_calib["depth_type"] == "CALIBRATED_DSM"
+    assert data_calib["units"] == "meters"
+    assert data_calib["is_metric"] is True
+    assert data_calib["calibration"]["scale_factor"] is not None
+    assert data_calib["calibration"]["metrics"]["rmse"] < 5.0
+
 

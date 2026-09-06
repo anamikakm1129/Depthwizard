@@ -13,8 +13,9 @@ from backend.app.config import settings
 from backend.app.inference.pipeline import DepthPipeline
 from backend.app.geospatial.raster_io import RasterIO
 from backend.app.geospatial.schemas import RasterExportConfig
+from backend.app.geospatial.relative_dsm import RelativeDSMGenerator
 from backend.app.geospatial.calibration import MetricCalibrator
-from backend.app.geospatial.calibration_schemas import GroundControlPoint
+from backend.app.geospatial.calibration_schemas import GroundControlPoint, MetricElevationProduct
 from backend.app.mesh.terrain import TerrainMeshGenerator
 from backend.app.api.schemas import (
     ProcessImageResponse,
@@ -22,6 +23,7 @@ from backend.app.api.schemas import (
     ValidationResponse,
     CalibrationResponse,
     CalibrationMetricsResponse,
+    ReliefMetricsResponse,
     GCPInput
 )
 
@@ -112,7 +114,15 @@ async def process_image(
     # Extract source spatial metadata
     source_meta = RasterIO.extract_metadata(input_file_path)
 
-    # 2. Calibration Engine
+    # 2. Relative DSM Generation
+    t_rdsm_start = time.perf_counter()
+    relative_dsm_product = RelativeDSMGenerator.generate(
+        relative_depth=pipeline_output.relative_depth,
+        metadata=source_meta
+    )
+    t_rdsm = time.perf_counter() - t_rdsm_start
+
+    # 3. Calibration Engine
     t_calib_start = time.perf_counter()
     parsed_gcps: List[GroundControlPoint] = []
     if gcps_json:
@@ -123,6 +133,8 @@ async def process_image(
                     x_pixel=float(item["x_pixel"]),
                     y_pixel=float(item["y_pixel"]),
                     z_elevation=float(item["z_elevation"]),
+                    x_geo=float(item["x_geo"]) if item.get("x_geo") is not None else None,
+                    y_geo=float(item["y_geo"]) if item.get("y_geo") is not None else None,
                     point_id=item.get("point_id"),
                     description=item.get("description")
                 ))
@@ -132,30 +144,22 @@ async def process_image(
                 detail=f"Invalid GCPs JSON format: {str(e)}"
             )
 
-    if parsed_gcps:
-        calib_result = MetricCalibrator.calibrate_with_gcps(
-            depth_map=pipeline_output.relative_depth,
-            gcps=parsed_gcps
-        )
-    else:
-        calib_result = MetricCalibrator.fallback_to_relative(
-            depth_map=pipeline_output.relative_depth,
-            reason="No elevation reference provided by user; maintaining relative disparity."
-        )
+    metric_product: MetricElevationProduct = relative_dsm_product.calibrate(
+        gcps=parsed_gcps if parsed_gcps else None
+    )
+    calib_result = metric_product.calibration
     t_calibration = time.perf_counter() - t_calib_start
 
-    # 3. Export Output GeoTIFF
+    # 4. Export Output GeoTIFF via MetricCalibrator
     output_geotiff_name = f"{job_id}_depth.tif"
     output_geotiff_path = settings.OUTPUT_DIR / output_geotiff_name
     export_cfg = RasterExportConfig(target_path=output_geotiff_path, compress="lzw")
 
     try:
-        export_result = RasterIO.export_depth_to_geotiff(
-            depth_map=calib_result.calibrated_array,
-            source_metadata=source_meta,
-            config=export_cfg,
-            depth_type=calib_result.depth_type,
-            is_calibrated=calib_result.is_metric
+        MetricCalibrator.export_metric_elevation(
+            product=metric_product,
+            target_path=output_geotiff_path,
+            config=export_cfg
         )
     except Exception as e:
         raise HTTPException(
@@ -163,23 +167,23 @@ async def process_image(
             detail=f"GeoTIFF export failed: {str(e)}"
         )
 
-    # 4. Generate Visual Colormap Preview (PNG)
+    # 5. Generate Visual Colormap Preview (PNG)
     output_preview_name = f"{job_id}_preview.png"
     output_preview_path = settings.OUTPUT_DIR / output_preview_name
-    norm_disp = pipeline_output.relative_depth
+    norm_disp = relative_dsm_product.array
     disp_uint8 = (norm_disp * 255.0).astype(np.uint8)
     colormap_img = cv2.applyColorMap(disp_uint8, cv2.COLORMAP_VIRIDIS)
     cv2.imwrite(str(output_preview_path), colormap_img)
 
-    # 5. Generate 3D Terrain Mesh (Wavefront OBJ)
+    # 6. Generate 3D Terrain Mesh (Wavefront OBJ)
     t_mesh_start = time.perf_counter()
     output_mesh_name = f"{job_id}_mesh.obj"
     output_mesh_path = settings.OUTPUT_DIR / output_mesh_name
     terrain_mesh = TerrainMeshGenerator.generate_mesh(
-        elevation_map=calib_result.calibrated_array,
+        elevation_map=metric_product.array,
         max_resolution=256,
-        vertical_scale=1.0 if calib_result.is_metric else 25.0,
-        is_metric=calib_result.is_metric
+        vertical_scale=1.0 if metric_product.is_metric else 25.0,
+        is_metric=metric_product.is_metric
     )
     TerrainMeshGenerator.export_to_obj(
         mesh=terrain_mesh,
@@ -190,10 +194,10 @@ async def process_image(
 
     # Timing metrics aggregation
     timings = dict(pipeline_output.timing)
+    timings["relative_dsm_seconds"] = t_rdsm
     timings["calibration_seconds"] = t_calibration
-    timings["total_seconds"] += t_calibration
     timings["mesh_seconds"] = t_mesh
-    timings["total_seconds"] += (t_calibration + t_mesh)
+    timings["total_seconds"] += (t_rdsm + t_calibration + t_mesh)
 
     # Format Calibration Response
     calib_metrics_resp = None
@@ -223,6 +227,21 @@ async def process_image(
         rejection_reason=calib_result.rejection_reason
     )
 
+    # Format Relief Metrics
+    rm = relative_dsm_product.metrics
+    relief_metrics_resp = ReliefMetricsResponse(
+        min_value=rm.min_value,
+        max_value=rm.max_value,
+        mean_value=rm.mean_value,
+        std_value=rm.std_value,
+        relief_range=rm.relief_range,
+        roughness_iqr=rm.roughness_iqr,
+        p10=rm.p10,
+        p50=rm.p50,
+        p90=rm.p90,
+        valid_pixel_count=rm.valid_pixel_count
+    )
+
     v = pipeline_output.validation
     val_resp = ValidationResponse(
         is_valid=v.is_valid,
@@ -245,15 +264,19 @@ async def process_image(
         crs=source_meta.crs_string,
         transform=source_meta.transform,
         bounds=source_meta.bounds,
+        resolution=source_meta.resolution,
         nodata=source_meta.nodata
     )
 
     return ProcessImageResponse(
         job_id=job_id,
         status="completed",
-        depth_type=calib_result.depth_type,
+        depth_type=metric_product.depth_type,
+        units=metric_product.units,
+        is_metric=metric_product.is_metric,
         input_metadata=meta_resp,
         validation=val_resp,
+        relief_metrics=relief_metrics_resp,
         calibration=calib_resp,
         timings=timings,
         geotiff_download_url=f"/api/v1/download/{output_geotiff_name}",
