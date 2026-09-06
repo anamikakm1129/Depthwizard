@@ -114,7 +114,9 @@ export function App() {
                   <Terrain3D
                     originalImageUrl={originalImageUrl}
                     depthImageUrl={processResult.preview_png_download_url}
+                    meshDownloadUrl={processResult.mesh_download_url}
                     depthType={processResult.depth_type}
+                    units={processResult.units}
                     isMetric={processResult.calibration.is_metric}
                   />
                 )}
