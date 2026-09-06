@@ -6,7 +6,7 @@ import { Comparison2D } from './components/Comparison2D';
 import { Terrain3D } from './components/Terrain3D';
 import { EvaluationModal } from './components/EvaluationModal';
 import type { HealthResponse, ProcessImageResponse, GCPInput, ProcessingStatus } from './types/api';
-import { fetchHealth, processImage } from './services/api';
+import { fetchHealth, processImage, getDownloadUrl } from './services/api';
 import { Layers, Box, AlertCircle } from 'lucide-react';
 
 export function App() {
@@ -39,6 +39,9 @@ export function App() {
         setProcessingStatus(stage);
       });
       setProcessResult(res);
+      if (res.optical_preview_download_url) {
+        setOriginalImageUrl(getDownloadUrl(res.optical_preview_download_url));
+      }
       setProcessingStatus('success');
     } catch (err: any) {
       setErrorMessage(err.message || 'Processing failed. Please check backend server.');

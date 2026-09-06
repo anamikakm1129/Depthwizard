@@ -49,23 +49,22 @@ async def startup_event():
     else:
         print(f"[{settings.PROJECT_NAME}] WARNING: Model checkpoint missing at: {settings.MODEL_PATH}")
 
-@app.get("/")
-async def root():
+@app.get("/", include_in_schema=False)
+@app.get("/app", include_in_schema=False)
+@app.get("/app/", include_in_schema=False)
+@app.get("/viewer", include_in_schema=False)
+@app.get("/viewer/", include_in_schema=False)
+async def serve_app():
+    index_file = FRONTEND_DIST / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
     return {
         "project": settings.PROJECT_NAME,
         "version": settings.VERSION,
         "docs_url": "/docs",
         "api_prefix": settings.API_PREFIX,
-        "app_url": "/app" if FRONTEND_DIST.exists() else None
+        "error": "Frontend build not found. Run 'npm run build' in frontend/ directory."
     }
-
-@app.get("/app", include_in_schema=False)
-@app.get("/viewer", include_in_schema=False)
-async def serve_app():
-    index_file = FRONTEND_DIST / "index.html"
-    if index_file.exists():
-        return FileResponse(index_file)
-    return {"error": "Frontend build not found. Run 'npm run build' in frontend/ directory."}
 
 @app.get("/favicon.svg", include_in_schema=False)
 async def serve_favicon():

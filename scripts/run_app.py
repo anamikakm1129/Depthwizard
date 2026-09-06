@@ -1,4 +1,4 @@
-﻿"""
+"""
 DepthWizard Cross-Platform Unified Application Launcher
 =======================================================
 Performs pre-flight verification and starts the DepthWizard server
@@ -26,8 +26,9 @@ def main():
     parser.add_argument("--download-assets", action="store_true", help="Automatically acquire missing model assets")
     args = parser.parse_args()
 
-    host = args.host or settings.HOST
-    port = args.port or settings.PORT
+    host = args.host or os.environ.get("HOST") or settings.HOST
+    env_port = os.environ.get("PORT") or os.environ.get("DEPTHWIZARD_PORT")
+    port = args.port or (int(env_port) if env_port else settings.PORT)
 
     print("=" * 78)
     print("   DEPTHWIZARD SIH 2026: UNIFIED SYSTEM LAUNCHER")

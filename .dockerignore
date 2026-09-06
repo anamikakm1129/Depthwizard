@@ -1,4 +1,4 @@
-﻿# Virtual environments
+# Virtual environments
 venv/
 .venv/
 env/
@@ -11,11 +11,10 @@ __pycache__/
 .pytest_cache/
 .coverage
 
-# Frontend source and node_modules (only frontend/dist is needed in container)
+# Frontend dependencies and generated build artifacts
 frontend/node_modules/
-frontend/src/
-frontend/public/
 frontend/.vite/
+frontend/dist/
 
 # Version control & OS artifacts
 .git/

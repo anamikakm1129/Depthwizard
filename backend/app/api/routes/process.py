@@ -167,13 +167,18 @@ async def process_image(
             detail=f"GeoTIFF export failed: {str(e)}"
         )
 
-    # 5. Generate Visual Colormap Preview (PNG)
+    # 5. Generate Visual Colormap Preview (PNG) & Authentic Optical Input Preview (PNG)
     output_preview_name = f"{job_id}_preview.png"
     output_preview_path = settings.OUTPUT_DIR / output_preview_name
     norm_disp = relative_dsm_product.array
     disp_uint8 = (norm_disp * 255.0).astype(np.uint8)
     colormap_img = cv2.applyColorMap(disp_uint8, cv2.COLORMAP_VIRIDIS)
     cv2.imwrite(str(output_preview_path), colormap_img)
+
+    output_optical_name = f"{job_id}_optical.png"
+    output_optical_path = settings.OUTPUT_DIR / output_optical_name
+    rgb_uint8, _ = pipeline.preprocessor.load_image(input_file_path)
+    cv2.imwrite(str(output_optical_path), cv2.cvtColor(rgb_uint8, cv2.COLOR_RGB2BGR))
 
     # 6. Generate 3D Terrain Mesh (Wavefront OBJ)
     t_mesh_start = time.perf_counter()
@@ -281,6 +286,7 @@ async def process_image(
         timings=timings,
         geotiff_download_url=f"/api/v1/download/{output_geotiff_name}",
         preview_png_download_url=f"/api/v1/download/{output_preview_name}",
+        optical_preview_download_url=f"/api/v1/download/{output_optical_name}",
         mesh_download_url=f"/api/v1/download/{output_mesh_name}"
     )
 

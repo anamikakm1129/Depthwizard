@@ -88,6 +88,7 @@ class ProcessImageResponse(BaseModel):
     timings: Dict[str, float]
     geotiff_download_url: str
     preview_png_download_url: str
+    optical_preview_download_url: Optional[str] = None
     mesh_download_url: Optional[str] = None
 
 class GCPInput(BaseModel):

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Set, List, Union
+from typing import Set, List, Union, Any
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -39,6 +39,18 @@ class Settings(BaseSettings):
 
     # CORS Settings
     CORS_ORIGINS: List[str] = ["*"]
+
+    @field_validator("PORT", mode="before")
+    @classmethod
+    def resolve_port(cls, v: Any) -> int:
+        import os
+        port_env = os.environ.get("PORT")
+        if port_env:
+            try:
+                return int(port_env)
+            except ValueError:
+                pass
+        return int(v)
 
     @field_validator("MODEL_PATH", "UPLOAD_DIR", "OUTPUT_DIR", mode="before")
     @classmethod

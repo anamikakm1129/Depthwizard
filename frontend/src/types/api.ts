@@ -82,6 +82,7 @@ export interface ProcessImageResponse {
   timings: Record<string, number>;
   geotiff_download_url: string;
   preview_png_download_url: string;
+  optical_preview_download_url?: string;
   mesh_download_url?: string;
 }
 
